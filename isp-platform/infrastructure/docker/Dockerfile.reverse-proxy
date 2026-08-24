@@ -1,3 +1,5 @@
 FROM nginx:1.27-alpine
 
 COPY infrastructure/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+
+ENV NGINX_DOLLAR="$"
