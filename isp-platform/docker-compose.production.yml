@@ -1,0 +1,149 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    image: ${ISP_OS_WEB_IMAGE:?set ISP_OS_WEB_IMAGE}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${WEB_DATABASE_URL:?set WEB_DATABASE_URL}
+      DIRECT_URL: ${WEB_DIRECT_URL:?set WEB_DIRECT_URL}
+      REDIS_URL: ${WEB_REDIS_URL:?set WEB_REDIS_URL}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?set NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      ISP_OS_CREDENTIALS_ENCRYPTION_KEY: ${ISP_OS_CREDENTIALS_ENCRYPTION_KEY:?set ISP_OS_CREDENTIALS_ENCRYPTION_KEY}
+      PORTAL_AUTH_SECRET: ${PORTAL_AUTH_SECRET:?set PORTAL_AUTH_SECRET}
+      ISP_OS_WORKER_SECRET: ${ISP_OS_WORKER_SECRET:?set ISP_OS_WORKER_SECRET}
+      NETWORK_AGENT_SHARED_SECRET: ${NETWORK_AGENT_SHARED_SECRET:?set NETWORK_AGENT_SHARED_SECRET}
+      NETWORK_AGENT_URL: ${NETWORK_AGENT_URL:?set NETWORK_AGENT_URL}
+      APP_ORIGIN: ${APP_ORIGIN:?set APP_ORIGIN}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:?set PAYSTACK_SECRET_KEY}
+      NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:?set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY}
+    networks:
+      - edge
+      - internal
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  captive-portal:
+    image: ${ISP_OS_CAPTIVE_PORTAL_IMAGE:?set ISP_OS_CAPTIVE_PORTAL_IMAGE}
+    environment:
+      NODE_ENV: production
+      PORTAL_WEB_ORIGIN: ${PORTAL_WEB_ORIGIN:?set PORTAL_WEB_ORIGIN}
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: ${ISP_OS_WORKER_IMAGE:?set ISP_OS_WORKER_IMAGE}
+    environment:
+      NODE_ENV: production
+      WORKER_CONTROL_URL: http://web:3000
+      ISP_OS_WORKER_SECRET: ${ISP_OS_WORKER_SECRET:?set ISP_OS_WORKER_SECRET}
+      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-30000}
+    networks:
+      - internal
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  network-agent:
+    image: ${ISP_OS_NETWORK_AGENT_IMAGE:?set ISP_OS_NETWORK_AGENT_IMAGE}
+    environment:
+      NODE_ENV: production
+      NETWORK_AGENT_SHARED_SECRET: ${NETWORK_AGENT_SHARED_SECRET:?set NETWORK_AGENT_SHARED_SECRET}
+      NETWORK_AGENT_BIND_HOST: ${NETWORK_AGENT_BIND_HOST:-0.0.0.0}
+      NETWORK_AGENT_ALLOWED_NODE_IDS: ${NETWORK_AGENT_ALLOWED_NODE_IDS:?set NETWORK_AGENT_ALLOWED_NODE_IDS}
+      NETWORK_AGENT_CONTROL_URL: ${NETWORK_AGENT_CONTROL_URL:?set NETWORK_AGENT_CONTROL_URL}
+      NETWORK_AGENT_ID: ${NETWORK_AGENT_ID:?set NETWORK_AGENT_ID}
+      NETWORK_AGENT_NODE_ID: ${NETWORK_AGENT_NODE_ID:?set NETWORK_AGENT_NODE_ID}
+      NETWORK_AGENT_WIREGUARD_ENABLED: ${NETWORK_AGENT_WIREGUARD_ENABLED:-false}
+      NETWORK_AGENT_WIREGUARD_ENDPOINT: ${NETWORK_AGENT_WIREGUARD_ENDPOINT:-}
+      NETWORK_AGENT_WIREGUARD_PRIVATE_KEY: ${NETWORK_AGENT_WIREGUARD_PRIVATE_KEY:-}
+      NETWORK_AGENT_WIREGUARD_SERVER_PUBLIC_KEY: ${NETWORK_AGENT_WIREGUARD_SERVER_PUBLIC_KEY:-}
+      NETWORK_AGENT_WIREGUARD_ADDRESS: ${NETWORK_AGENT_WIREGUARD_ADDRESS:-}
+      NETWORK_AGENT_WIREGUARD_ALLOWED_IPS: ${NETWORK_AGENT_WIREGUARD_ALLOWED_IPS:-10.77.0.0/24}
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - internal
+      - management
+    expose:
+      - "8090"
+    restart: unless-stopped
+
+  reverse-proxy:
+    image: ${ISP_OS_REVERSE_PROXY_IMAGE:?set ISP_OS_REVERSE_PROXY_IMAGE}
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?set WEB_DOMAIN}
+      PORTAL_DOMAIN: ${PORTAL_DOMAIN:?set PORTAL_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+      captive-portal:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  edge:
+  internal:
+    internal: true
+  data:
+    internal: true
+  management:
+    internal: true

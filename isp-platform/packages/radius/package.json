@@ -1,0 +1,16 @@
+{
+  "name": "radius",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "billing": "workspace:*",
+    "database": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "tsx": "^4.20.6"
+  }
+}

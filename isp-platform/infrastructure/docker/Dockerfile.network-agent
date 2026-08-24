@@ -1,0 +1,12 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache wireguard-tools
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+COPY . .
+RUN pnpm install --frozen-lockfile \
+  && pnpm store prune
+
+ENV NODE_ENV=production
+EXPOSE 8090
+CMD ["pnpm", "--filter", "network-agent", "run", "start"]

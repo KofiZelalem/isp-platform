@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      ISP_OS_CREDENTIALS_ENCRYPTION_KEY: ci-encryption-key-012345678901234567890123
+      PORTAL_AUTH_SECRET: ci-portal-secret
+      ISP_OS_WORKER_SECRET: ci-worker-secret-012345678901234567890123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod
+      - run: pnpm --filter database run db:generate
+      - run: pnpm --filter database exec prisma validate
+      # Applies every tracked migration to a fresh, disposable CI database, proving the
+      # migration history is ordered correctly and applies cleanly before it ever reaches staging/production.
+      - run: pnpm --filter database run db:migrate:deploy
+      - run: pnpm --filter database run db:migrate:status
+      - run: pnpm --filter web lint
+      - run: pnpm run test
+      - run: pnpm -r run test
+      - run: pnpm --filter web build
+      - run: pnpm --filter captive-portal run build
+

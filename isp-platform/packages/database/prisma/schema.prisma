@@ -1,0 +1,964 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model PlatformPlan {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  price         Decimal        @default(0) @db.Decimal(12, 2)
+  max_customers Int            @default(0)
+  max_routers   Int            @default(0)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  organizations Organization[]
+
+  @@index([name])
+  @@map("platform_plans")
+}
+
+model Organization {
+  id                String                @id @default(uuid())
+  name              String
+  slug              String                @unique
+  status            OrgStatus             @default(PENDING)
+  plan_tier         String                @default("starter")
+  platform_plan_id  String?
+  custom_domain     String?
+  logo_url          String?
+  primary_color     String?
+  secondary_color   String?
+  country           String?
+  timezone          String                @default("UTC")
+  currency          String                @default("USD")
+  created_at        DateTime              @default(now())
+  updated_at        DateTime              @updatedAt
+  deleted_at        DateTime?
+  api_keys          ApiKey[]
+  agent_heartbeats  AgentHeartbeat[]
+  audit_logs        AuditLog[]
+  invoices          Invoice[]
+  feature_flags     OrganizationFeatureFlag[]
+  invitations       Invitation[]
+  network_nodes     NetworkNode[]
+  notifications     Notification[]
+  settings          OrganizationSettings?
+  platform_plan     PlatformPlan?         @relation(fields: [platform_plan_id], references: [id])
+  payments          Payment[]
+  reports           Report[]
+  scheduled_reports ScheduledReport[]
+  report_deliveries ReportDelivery[]
+  subscription      PlatformSubscription?
+  reseller_profiles ResellerProfile[]
+  reseller_payouts  ResellerPayout[]
+  service_plans     ServicePlan[]
+  sessions          Session[]
+  subscribers       Subscriber[]
+  subscriptions     Subscription[]
+  tickets           SupportTicket[]
+  users             User[]
+  voucher_batches   VoucherBatch[]
+  wallets           Wallet[]
+  webhooks          Webhook[]
+
+  @@index([platform_plan_id])
+  @@index([slug])
+  @@map("organizations")
+}
+
+model OrganizationSettings {
+  id                    String       @id @default(uuid())
+  organization_id       String       @unique
+  sms_gateway_provider  String?
+  sms_api_key           String?
+  smtp_host             String?
+  smtp_port             Int?
+  smtp_user             String?
+  smtp_password_enc     String?
+  payment_provider      String?
+  payment_api_key_enc   String?
+  radius_secret_enc     String?
+  notification_email_provider String?
+  notification_email_api_key_enc String?
+  notification_email_from String?
+  notification_sms_provider String?
+  notification_sms_api_key_enc String?
+  notification_sms_sender String?
+  max_sessions_per_user Int          @default(1)
+  captive_portal_config Json?
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @updatedAt
+  organization          Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
+}
+
+model OrganizationFeatureFlag {
+  id              String       @id @default(uuid())
+  organization_id String
+  key             String
+  enabled         Boolean      @default(false)
+  updated_by      String?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, key])
+  @@index([organization_id, enabled])
+  @@map("organization_feature_flags")
+}
+
+model User {
+  id               String           @id @default(uuid())
+  organization_id  String
+  supabase_uid     String           @unique
+  email            String
+  full_name        String?
+  phone            String?
+  role             UserRole
+  permissions      String[]         @default([])
+  is_active        Boolean          @default(true)
+  last_login_at    DateTime?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  deleted_at       DateTime?
+  audit_logs       AuditLog[]
+  reseller_profile ResellerProfile?
+  requested_reports Report[]          @relation("ReportRequestedBy")
+  scheduled_reports ScheduledReport[] @relation("ScheduleCreatedBy")
+  tickets_assigned SupportTicket[]  @relation("AssignedTo")
+  tickets_raised   SupportTicket[]  @relation("RaisedBy")
+  organization     Organization     @relation(fields: [organization_id], references: [id])
+  accepted_invitation Invitation?    @relation("InvitationAcceptedUser")
+  created_invitations Invitation[]   @relation("InvitationCreatedBy")
+
+  @@unique([organization_id, email])
+  @@index([organization_id])
+  @@index([supabase_uid])
+  @@map("users")
+}
+
+model Invitation {
+  id                  String             @id @default(uuid())
+  organization_id     String
+  invited_by_user_id  String
+  accepted_user_id    String?            @unique
+  email               String
+  role                InvitationRole
+  token_hash          String             @unique
+  status              InvitationStatus   @default(PENDING)
+  expires_at          DateTime
+  accepted_at         DateTime?
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  organization        Organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  inviter             User               @relation("InvitationCreatedBy", fields: [invited_by_user_id], references: [id])
+  accepted_user       User?              @relation("InvitationAcceptedUser", fields: [accepted_user_id], references: [id])
+
+  @@unique([organization_id, email, status])
+  @@index([organization_id, status])
+  @@index([organization_id, expires_at])
+  @@map("invitations")
+}
+
+model Subscriber {
+  id               String           @id @default(uuid())
+  organization_id  String
+  user_id          String?
+  username         String
+  password_hash    String
+  full_name        String
+  email            String?
+  phone            String?
+  status           SubscriberStatus @default(ACTIVE)
+  kyc_verified     Boolean          @default(false)
+  kyc_document     String?
+  address          String?
+  notes            String?
+  reseller_id      String?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  deleted_at       DateTime?
+  invoices         Invoice[]
+  payments         Payment[]
+  sessions         Session[]
+  organization     Organization     @relation(fields: [organization_id], references: [id])
+  reseller_profile ResellerProfile? @relation(fields: [reseller_id], references: [id])
+  subscriptions    Subscription[]
+  tickets          SupportTicket[]
+  voucher_uses     VoucherUse[]
+  wallet           Wallet?
+
+  @@unique([organization_id, username])
+  @@index([organization_id])
+  @@index([organization_id, status])
+  @@map("subscribers")
+}
+
+model ResellerProfile {
+  id              String         @id @default(uuid())
+  user_id         String         @unique
+  organization_id String
+  commission_rate Decimal        @default(10) @db.Decimal(5, 2)
+  wallet_balance  Decimal        @default(0) @db.Decimal(14, 4)
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+  payments        Payment[]
+  organization    Organization   @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  voucher_batches VoucherBatch[]
+  subscribers     Subscriber[]
+  wallet          Wallet?
+  payouts         ResellerPayout[]
+
+  @@index([organization_id])
+  @@map("reseller_profiles")
+}
+
+model ResellerPayout {
+  id              String        @id @default(uuid())
+  organization_id String
+  reseller_id     String
+  amount          Decimal       @db.Decimal(14, 4)
+  status          PayoutStatus  @default(PENDING)
+  requested_at    DateTime      @default(now())
+  approved_at     DateTime?
+  paid_at         DateTime?
+  processed_by    String?
+  note            String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  reseller        ResellerProfile @relation(fields: [reseller_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id, status])
+  @@index([reseller_id, created_at])
+  @@map("reseller_payouts")
+}
+
+model ServicePlan {
+  id                  String         @id @default(uuid())
+  organization_id     String
+  name                String
+  description         String?
+  plan_type           PlanType
+  plan_period         PlanPeriod
+  price               Decimal        @db.Decimal(12, 2)
+  data_limit_mb       Int?
+  time_limit_minutes  Int?
+  speed_upload_kbps   Int?
+  speed_download_kbps Int?
+  validity_days       Int            @default(30)
+  is_active           Boolean        @default(true)
+  is_public           Boolean        @default(true)
+  mikrotik_profile    String?
+  radius_group        String?
+  metadata            Json?
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+  deleted_at          DateTime?
+  organization        Organization   @relation(fields: [organization_id], references: [id])
+  subscriptions       Subscription[]
+  voucher_batches     VoucherBatch[]
+
+  @@index([organization_id])
+  @@index([organization_id, is_active])
+  @@map("service_plans")
+}
+
+model Subscription {
+  id              String             @id @default(uuid())
+  organization_id String
+  subscriber_id   String
+  plan_id         String
+  status          SubscriptionStatus @default(PENDING)
+  started_at      DateTime           @default(now())
+  expires_at      DateTime?
+  data_used_mb    Int                @default(0)
+  auto_renew      Boolean            @default(false)
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  invoices        Invoice[]
+  payments        Payment[]
+  organization    Organization       @relation(fields: [organization_id], references: [id])
+  plan            ServicePlan        @relation(fields: [plan_id], references: [id])
+  subscriber      Subscriber         @relation(fields: [subscriber_id], references: [id])
+
+  @@index([organization_id])
+  @@index([subscriber_id])
+  @@index([expires_at])
+  @@map("subscriptions")
+}
+
+model VoucherBatch {
+  id               String           @id @default(uuid())
+  organization_id  String
+  plan_id          String
+  name             String
+  prefix           String?
+  quantity         Int
+  selling_price    Decimal          @db.Decimal(12, 2)
+  generated_by     String
+  reseller_id      String?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  organization     Organization     @relation(fields: [organization_id], references: [id])
+  plan             ServicePlan      @relation(fields: [plan_id], references: [id])
+  reseller_profile ResellerProfile? @relation(fields: [reseller_id], references: [id])
+  vouchers         Voucher[]
+
+  @@index([organization_id])
+  @@index([reseller_id])
+  @@map("voucher_batches")
+}
+
+model Voucher {
+  id              String        @id @default(uuid())
+  organization_id String
+  batch_id        String
+  code            String
+  status          VoucherStatus @default(GENERATED)
+  sold_to         String?
+  sold_at         DateTime?
+  expires_at      DateTime?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  uses            VoucherUse[]
+  batch           VoucherBatch  @relation(fields: [batch_id], references: [id])
+
+  @@unique([organization_id, code])
+  @@index([organization_id])
+  @@index([organization_id, status])
+  @@map("vouchers")
+}
+
+model VoucherUse {
+  id              String     @id @default(uuid())
+  organization_id String
+  voucher_id      String
+  subscriber_id   String
+  session_id      String?
+  redeemed_at     DateTime   @default(now())
+  subscriber      Subscriber @relation(fields: [subscriber_id], references: [id])
+  voucher         Voucher    @relation(fields: [voucher_id], references: [id])
+
+  @@index([organization_id])
+  @@index([voucher_id])
+  @@map("voucher_uses")
+}
+
+model NetworkNode {
+  id                        String                 @id @default(uuid())
+  organization_id           String
+  name                      String
+  node_type                 NodeType
+  ip_address                String
+  port                      Int                    @default(8728)
+  username_enc              String
+  password_enc              String
+  hotspot_login_url         String?
+  status                    NodeStatus             @default(PROVISIONING)
+  connection_status         RouterConnectionStatus @default(DISCONNECTED)
+  location                  String?
+  last_seen_at              DateTime?
+  vpn_ip_address            String?
+  wireguard_public_key      String?
+  wireguard_private_key_enc String?
+  wireguard_pub_key         String?
+  created_at                DateTime               @default(now())
+  updated_at                DateTime               @updatedAt
+  organization              Organization           @relation(fields: [organization_id], references: [id])
+  sessions                  Session[]
+  agent_heartbeat           AgentHeartbeat?
+
+  @@index([organization_id])
+  @@map("network_nodes")
+}
+
+model AgentHeartbeat {
+  id                String            @id @default(uuid())
+  organization_id   String
+  node_id           String            @unique
+  agent_id          String            @unique
+  last_heartbeat_at DateTime
+  tunnel_state      AgentTunnelState  @default(UNKNOWN)
+  last_error        String?
+  metadata          Json?
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+  organization      Organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  node              NetworkNode       @relation(fields: [node_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id])
+  @@index([organization_id, last_heartbeat_at])
+  @@map("agent_heartbeats")
+}
+
+model Session {
+  id                String        @id @default(uuid())
+  organization_id   String
+  subscriber_id     String
+  node_id           String
+  radius_session    String?
+  ip_address        String?
+  mac_address       String?
+  status            SessionStatus @default(ACTIVE)
+  started_at        DateTime      @default(now())
+  ended_at          DateTime?
+  data_up_mb        Int           @default(0)
+  data_down_mb      Int           @default(0)
+  duration_sec      Int           @default(0)
+  termination_cause String?
+  node              NetworkNode   @relation(fields: [node_id], references: [id])
+  organization      Organization  @relation(fields: [organization_id], references: [id])
+  subscriber        Subscriber    @relation(fields: [subscriber_id], references: [id])
+
+  @@index([organization_id])
+  @@index([subscriber_id])
+  @@index([organization_id, status])
+  @@index([radius_session])
+  @@map("sessions")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  organization_id String
+  subscriber_id   String
+  subscription_id String?
+  invoice_number  String
+  status          InvoiceStatus @default(PENDING)
+  subtotal        Decimal       @db.Decimal(12, 2)
+  tax             Decimal       @default(0) @db.Decimal(12, 2)
+  total           Decimal       @db.Decimal(12, 2)
+  due_date        DateTime
+  paid_at         DateTime?
+  notes           String?
+  line_items      Json
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organization_id], references: [id])
+  subscriber      Subscriber    @relation(fields: [subscriber_id], references: [id])
+  subscription    Subscription? @relation(fields: [subscription_id], references: [id])
+  payments        Payment[]
+
+  @@unique([organization_id, invoice_number])
+  @@index([organization_id])
+  @@index([subscriber_id])
+  @@index([organization_id, status])
+  @@map("invoices")
+}
+
+model Payment {
+  id                String           @id @default(uuid())
+  organization_id   String
+  internal_reference String         @unique
+  subscriber_id     String?
+  reseller_id       String?
+  subscription_id   String?
+  invoice_id        String?
+  amount            Decimal          @db.Decimal(12, 2)
+  currency          String           @default("USD")
+  provider          PaymentProvider
+  status            PaymentStatus    @default(PENDING)
+  provider_ref      String?
+  payment_method    String?
+  failure_reason    String?
+  provider_response Json?
+  paid_at           DateTime?
+  created_at        DateTime         @default(now())
+  updated_at        DateTime         @updatedAt
+  invoice           Invoice?         @relation(fields: [invoice_id], references: [id])
+  organization      Organization     @relation(fields: [organization_id], references: [id])
+  reseller_profile  ResellerProfile? @relation(fields: [reseller_id], references: [id])
+  subscriber        Subscriber?      @relation(fields: [subscriber_id], references: [id])
+  subscription      Subscription?    @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+
+  @@index([organization_id])
+  @@index([subscriber_id])
+  @@index([reseller_id])
+  @@index([provider_ref])
+  @@index([organization_id, status])
+  @@index([subscription_id])
+  @@map("payments")
+}
+
+model Wallet {
+  id               String              @id @default(uuid())
+  organization_id  String
+  subscriber_id    String?             @unique
+  reseller_id      String?             @unique
+  balance          Decimal             @default(0) @db.Decimal(14, 4)
+  currency         String              @default("USD")
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+  transactions     WalletTransaction[]
+  organization     Organization        @relation(fields: [organization_id], references: [id])
+  reseller_profile ResellerProfile?    @relation(fields: [reseller_id], references: [id])
+  subscriber       Subscriber?         @relation(fields: [subscriber_id], references: [id])
+
+  @@index([organization_id])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  organization_id String
+  wallet_id       String
+  type            WalletTransactionType
+  amount          Decimal               @db.Decimal(14, 4)
+  balance_before  Decimal               @db.Decimal(14, 4)
+  balance_after   Decimal               @db.Decimal(14, 4)
+  reference       String?
+  description     String?
+  created_at      DateTime              @default(now())
+  wallet          Wallet                @relation(fields: [wallet_id], references: [id])
+
+  @@index([wallet_id])
+  @@index([organization_id])
+  @@map("wallet_transactions")
+}
+
+model SupportTicket {
+  id              String          @id @default(uuid())
+  organization_id String
+  subscriber_id   String?
+  raised_by       String
+  assigned_to     String?
+  subject         String
+  description     String
+  category        String
+  status          TicketStatus    @default(OPEN)
+  priority        TicketPriority  @default(MEDIUM)
+  resolved_at     DateTime?
+  closed_at       DateTime?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  assignee        User?           @relation("AssignedTo", fields: [assigned_to], references: [id])
+  organization    Organization    @relation(fields: [organization_id], references: [id])
+  raiser          User            @relation("RaisedBy", fields: [raised_by], references: [id])
+  subscriber      Subscriber?     @relation(fields: [subscriber_id], references: [id])
+  comments        TicketComment[]
+
+  @@index([organization_id])
+  @@index([organization_id, status])
+  @@map("support_tickets")
+}
+
+model TicketComment {
+  id          String        @id @default(uuid())
+  ticket_id   String
+  author_id   String
+  body        String
+  is_internal Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  ticket      SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id])
+  @@map("ticket_comments")
+}
+
+model Notification {
+  id              String              @id @default(uuid())
+  organization_id String
+  user_id         String?
+  subscriber_id   String?
+  type            NotificationType    @default(GENERAL)
+  message         String
+  status          NotificationStatus  @default(PENDING)
+  recipient_id    String?
+  channel         NotificationChannel @default(IN_APP)
+  subject         String?
+  body            String              @default("")
+  is_read         Boolean             @default(false)
+  sent_at         DateTime?
+  read_at         DateTime?
+  error           String?
+  retry_of_id     String?
+  retry_count     Int                 @default(0)
+  last_retry_at   DateTime?
+  created_at      DateTime            @default(now())
+  organization    Organization        @relation(fields: [organization_id], references: [id])
+  retry_of        Notification?       @relation("NotificationRetries", fields: [retry_of_id], references: [id], onDelete: SetNull)
+  retries         Notification[]      @relation("NotificationRetries")
+
+  @@index([organization_id])
+  @@index([organization_id, status])
+  @@index([organization_id, created_at])
+  @@index([recipient_id])
+  @@index([organization_id, retry_of_id])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id              String       @id @default(uuid())
+  organization_id String
+  actor_id        String?
+  action          String
+  resource_type   String
+  resource_id     String?
+  before_state    Json?
+  after_state     Json?
+  ip_address      String?
+  user_agent      String?
+  created_at      DateTime     @default(now())
+  actor           User?        @relation(fields: [actor_id], references: [id])
+  organization    Organization @relation(fields: [organization_id], references: [id])
+
+  @@index([organization_id])
+  @@index([organization_id, created_at])
+  @@index([actor_id])
+  @@map("audit_logs")
+}
+
+model Report {
+  id                   String       @id @default(uuid())
+  organization_id      String
+  requested_by_user_id String
+  type                 ReportType
+  status               ReportStatus @default(PENDING)
+  window_start         DateTime
+  window_end           DateTime
+  file_name            String
+  content_type         String       @default("text/csv")
+  content              String?
+  row_count            Int          @default(0)
+  metadata             Json?
+  error                String?
+  generated_at         DateTime?
+  created_at           DateTime     @default(now())
+  updated_at           DateTime     @updatedAt
+  organization         Organization @relation(fields: [organization_id], references: [id])
+  requester            User         @relation("ReportRequestedBy", fields: [requested_by_user_id], references: [id])
+  deliveries           ReportDelivery[]
+
+  @@index([organization_id])
+  @@index([organization_id, created_at])
+  @@index([organization_id, status])
+  @@index([requested_by_user_id])
+  @@map("reports")
+}
+
+model ScheduledReport {
+  id                    String             @id @default(uuid())
+  organization_id       String
+  created_by_user_id    String
+  type                  ReportType
+  frequency             ReportFrequency
+  enabled               Boolean            @default(true)
+  next_run_at           DateTime
+  last_run_at           DateTime?
+  last_successful_run_at DateTime?
+  last_status            ReportStatus?
+  last_error             String?
+  delivery_channel      ReportDeliveryChannel @default(IN_APP)
+  delivery_target       String?
+  claim_id              String?
+  claimed_until         DateTime?
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @updatedAt
+  organization          Organization       @relation(fields: [organization_id], references: [id])
+  creator               User               @relation("ScheduleCreatedBy", fields: [created_by_user_id], references: [id])
+
+  @@index([organization_id])
+  @@index([organization_id, enabled, next_run_at])
+  @@index([created_by_user_id])
+  @@map("scheduled_reports")
+}
+
+model ReportDelivery {
+  id              String                @id @default(uuid())
+  organization_id String
+  report_id       String
+  channel         ReportDeliveryChannel
+  target          String?
+  status          ReportDeliveryStatus  @default(PENDING)
+  error           String?
+  delivered_at    DateTime?
+  created_at      DateTime              @default(now())
+  updated_at      DateTime              @updatedAt
+  organization    Organization           @relation(fields: [organization_id], references: [id])
+  report          Report                @relation(fields: [report_id], references: [id], onDelete: Cascade)
+
+  @@index([organization_id, created_at])
+  @@index([organization_id, status])
+  @@index([report_id])
+  @@map("report_deliveries")
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  entity     String
+  entity_id  String
+  actor_id   String
+  details    Json?
+  created_at DateTime @default(now())
+
+  @@index([entity, entity_id])
+  @@index([actor_id])
+  @@index([created_at])
+  @@map("platform_audit_logs")
+}
+
+model ApiKey {
+  id              String       @id @default(uuid())
+  organization_id String
+  name            String
+  key_hash        String       @unique
+  scopes          String[]
+  last_used_at    DateTime?
+  expires_at      DateTime?
+  is_active       Boolean      @default(true)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  organization    Organization @relation(fields: [organization_id], references: [id])
+
+  @@index([organization_id])
+  @@map("api_keys")
+}
+
+model Webhook {
+  id              String       @id @default(uuid())
+  organization_id String
+  url             String
+  events          String[]
+  secret_enc      String
+  is_active       Boolean      @default(true)
+  last_triggered  DateTime?
+  failure_count   Int          @default(0)
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  organization    Organization @relation(fields: [organization_id], references: [id])
+
+  @@index([organization_id])
+  @@map("webhooks")
+}
+
+model PlatformSubscription {
+  id              String        @id @default(uuid())
+  organization_id String        @unique
+  tier            String
+  status          InvoiceStatus @default(PENDING)
+  price_monthly   Decimal       @db.Decimal(12, 2)
+  billing_cycle   String        @default("monthly")
+  started_at      DateTime      @default(now())
+  expires_at      DateTime?
+  stripe_sub_id   String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organization_id], references: [id])
+
+  @@map("platform_subscriptions")
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  ISP_ADMIN
+  STAFF
+  RESELLER
+  CUSTOMER
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+  TERMINATED
+}
+
+enum SubscriberStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  TERMINATED
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum PlanType {
+  TIME_BASED
+  DATA_BASED
+  UNLIMITED
+  VOUCHER
+}
+
+enum PlanPeriod {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum VoucherStatus {
+  GENERATED
+  SOLD
+  REDEEMED
+  EXPIRED
+  REVOKED
+}
+
+enum NodeType {
+  MIKROTIK
+  FREERADIUS
+  UNIFI
+}
+
+enum NodeStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  PROVISIONING
+}
+
+enum RouterConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  FLUTTERWAVE
+  PAYSTACK
+  MPESA
+  WALLET
+  MANUAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum NotificationType {
+  PAYMENT
+  EXPIRY
+  PAYMENT_SUCCESS
+  PACKAGE_ACTIVATED
+  ROUTER_DISCONNECTED
+  ROUTER_ERROR
+  GENERAL
+}
+
+enum SessionStatus {
+  ACTIVE
+  TERMINATED
+  EXPIRED
+}
+
+enum WalletTransactionType {
+  TOPUP
+  DEDUCTION
+  COMMISSION
+  REFUND
+  ADJUSTMENT
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum ReportType {
+  SESSION_USAGE_CSV
+  USAGE_SUMMARY_CSV
+}
+
+enum ReportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum ReportDeliveryChannel {
+  IN_APP
+  EMAIL
+  WEBHOOK
+}
+
+enum ReportDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AgentTunnelState {
+  DISABLED
+  UP
+  DOWN
+  ERROR
+  UNKNOWN
+}
+
+enum InvitationRole {
+  STAFF
+  RESELLER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}

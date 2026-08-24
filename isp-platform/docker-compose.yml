@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ispos-postgres
+    environment:
+      POSTGRES_USER: ispos
+      POSTGRES_PASSWORD: ispospassword
+      POSTGRES_DB: ispos_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ispos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  worker:
+    image: node:20-alpine
+    container_name: ispos-worker
+    working_dir: /app
+    environment:
+      WORKER_CONTROL_URL: ${WORKER_CONTROL_URL:-http://web:3000}
+      ISP_OS_WORKER_SECRET: ${ISP_OS_WORKER_SECRET:?set ISP_OS_WORKER_SECRET}
+      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-30000}
+    volumes:
+      - ./:/app
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm --filter worker start"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

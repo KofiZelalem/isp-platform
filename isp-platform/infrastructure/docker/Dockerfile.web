@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+COPY . .
+# Low-memory build hosts need a raised V8 heap so `next build` can use swap instead of OOM-killing.
+ENV NODE_OPTIONS=--max-old-space-size=1536
+RUN pnpm install --frozen-lockfile \
+  && pnpm --filter database run db:generate \
+  && pnpm --filter web run build \
+  && pnpm store prune
+
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["pnpm", "--filter", "web", "run", "start"]

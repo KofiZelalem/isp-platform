@@ -1,0 +1,24 @@
+{
+  "name": "mikrotik",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "router:test": "tsx src/router-smoke-test.ts",
+    "credentials:migrate": "tsx src/credential-migration.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "database": "workspace:*",
+    "network": "workspace:*",
+    "notifications": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "vitest": "^3.2.7",
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

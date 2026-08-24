@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export function AuditTable({ entries }: { entries: { id: string; action: string; entity: string; entity_id: string; actor_id: string; created_at: Date }[] }) {
+  return <Card><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle>Platform audit log</CardTitle><Link className="rounded-md border px-3 py-1.5 text-sm" href="/platform/audit-export">Export CSV</Link></div></CardHeader><CardContent className="p-0"><div className="max-h-96 overflow-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-left"><tr><th className="p-3">Action</th><th className="p-3">Entity</th><th className="p-3">Actor</th><th className="p-3">Time</th></tr></thead><tbody>{entries.map((entry) => <tr key={entry.id} className="border-t border-border/50"><td className="p-3 font-medium">{entry.action}</td><td className="p-3">{entry.entity} · {entry.entity_id}</td><td className="p-3 font-mono text-xs">{entry.actor_id}</td><td className="p-3 text-muted-foreground">{entry.created_at.toISOString().replace("T", " ").slice(0, 19)}</td></tr>)}{entries.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">No platform audit entries.</td></tr>}</tbody></table></div></CardContent></Card>;
+}
