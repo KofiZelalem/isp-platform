@@ -118,6 +118,7 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     networks:
+      - edge
       - internal
       - management
     expose:
