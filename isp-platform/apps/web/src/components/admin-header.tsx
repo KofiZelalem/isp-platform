@@ -6,6 +6,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { signOutAction } from "@/components/admin-header-actions"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function AdminHeader({
   organizationName = "ISP-OS Platform",
@@ -34,6 +35,7 @@ export function AdminHeader({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
+        <ThemeToggle />
         <div className="hidden items-center gap-2 rounded-full border border-border/50 bg-background/50 px-3 py-1.5 text-sm md:flex">
           <Building className="h-4 w-4 text-primary" />
           <span className="max-w-40 truncate">{organizationName}</span>

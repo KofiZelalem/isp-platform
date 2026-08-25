@@ -129,6 +129,77 @@
   }
 }
 
+.login-shell {
+  background-color: var(--background);
+  background-image: url("data:image/svg+xml,%3Csvg width='920' height='620' viewBox='0 0 920 620' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23cfe3f9' stroke-width='2' opacity='.58'%3E%3Cpath d='M-30 80c120-90 210 60 330-15s200-20 300 38 190-40 350-4'/%3E%3Cpath d='M-40 115c145-100 220 55 335-10s200-15 300 42 190-38 365 0'/%3E%3Cpath d='M-35 410c130 85 215-45 340 20s210 70 300-5 205 16 350-42'/%3E%3Cpath d='M-30 445c140 80 220-42 345 22s210 72 300-3 205 15 350-40'/%3E%3Cpath d='M145-30c85 105-15 175 70 265s15 175-35 250 0 120 35 180'/%3E%3Cpath d='M180-30c80 110-10 180 75 270s12 170-32 245 2 120 38 175'/%3E%3Cpath d='M730-30c-85 115 18 175-55 270s-20 175 38 250-8 120-42 170'/%3E%3Cpath d='M765-30c-80 115 20 178-50 270s-18 170 42 250-6 120-40 170'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+.dark .login-shell {
+  background-color: oklch(0.12 0.02 240);
+  background-image: url("data:image/svg+xml,%3Csvg width='920' height='620' viewBox='0 0 920 620' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23305b78' stroke-width='2' opacity='.38'%3E%3Cpath d='M-30 80c120-90 210 60 330-15s200-20 300 38 190-40 350-4'/%3E%3Cpath d='M-40 115c145-100 220 55 335-10s200-15 300 42 190-38 365 0'/%3E%3Cpath d='M-35 410c130 85 215-45 340 20s210 70 300-5 205 16 350-42'/%3E%3Cpath d='M-30 445c140 80 220-42 345 22s210 72 300-3 205 15 350-40'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.login-brand-panel {
+  background: linear-gradient(145deg, #182126 0%, #10171b 100%);
+}
+
+.login-mark {
+  position: relative;
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid #ff5b68;
+  border-radius: 50%;
+  transform: rotate(-35deg);
+}
+
+.login-mark::before,
+.login-mark::after,
+.login-mark span {
+  position: absolute;
+  content: "";
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: #ff5b68;
+}
+
+.login-mark::before { top: -0.25rem; left: 0.38rem; }
+.login-mark::after { right: -0.2rem; bottom: 0.18rem; }
+.login-mark span { left: -0.18rem; bottom: 0.12rem; }
+
+.login-shield {
+  position: relative;
+  width: 4.5rem;
+  height: 5.2rem;
+  border: 0.38rem solid #43c8d0;
+  border-radius: 44% 44% 48% 48% / 25% 25% 65% 65%;
+  clip-path: polygon(50% 0, 100% 16%, 92% 67%, 50% 100%, 8% 67%, 0 16%);
+}
+
+.login-shield::before {
+  position: absolute;
+  content: "";
+  left: 50%;
+  top: 39%;
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 50%;
+  background: #43c8d0;
+  transform: translate(-50%, -50%);
+}
+
+.login-shield span {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 0.25rem;
+  height: 1rem;
+  background: #43c8d0;
+  transform: translateX(-50%);
+}
+
 @media (max-width: 639px) {
   main h1.text-3xl {
     font-size: 1.5rem;
